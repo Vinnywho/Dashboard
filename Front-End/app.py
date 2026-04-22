@@ -263,15 +263,19 @@ def main():
     else:
         st.warning(
             "Data de lançamento não disponível para a campanha selecionada.")
+        
+    st.sidebar.header("Visão Estratégica com IA")
+    with st.sidebar.container():
+        st.markdown("---")
 
-    st.markdown("---")
+        if st.button("Gerar Análise com IA"):
+            with st.spinner('Analisando...'):
+                resumo = {'impactados': len(
+                    impactados), 'conversao': taxa_conversao, 'receita_direta': receita_direta}
+                st.markdown(
+                    f'<div class="ia-insight-box">💡 <b>Insight:</b><br>{obter_insight_ia(campanha_selecionada, resumo)}</div>', unsafe_allow_html=True)
 
-    if st.button("Gerar Análise com IA"):
-        with st.spinner('Analisando...'):
-            resumo = {'impactados': len(
-                impactados), 'conversao': taxa_conversao, 'receita_direta': receita_direta}
-            st.markdown(
-                f'<div class="ia-insight-box">💡 <b>Insight:</b><br>{obter_insight_ia(campanha_selecionada, resumo)}</div>', unsafe_allow_html=True)
+    
 
 
 if __name__ == "__main__":
