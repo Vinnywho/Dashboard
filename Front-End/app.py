@@ -175,95 +175,182 @@ def main():
     campanhas_total, conversoes_total, pedidos_loja, mapa_lojas = carregar_dados()
 
     lista_campanhas = sorted(campanhas_total['name'].unique())
-    campanha_selecionada = st.selectbox(
-        "Selecione a Campanha para análise:", lista_campanhas)
+    campanha_selecionada = st.selectbox( "Selecione a Campanha para análise:", lista_campanhas)
 
     impactados, pedidos_convertidos, id_loja_campanha, nome_loja_atual, col_store_id_pedidos = processar_campanha(
         campanha_selecionada, campanhas_total, conversoes_total, pedidos_loja, mapa_lojas
     )
 
-    clientes_convertidos = set(pedidos_convertidos['customerid'].unique(
-    )) if not pedidos_convertidos.empty else set()
-    taxa_conversao = (len(clientes_convertidos) / len(impactados)
-                      * 100) if len(impactados) > 0 else 0
-    receita_direta = pedidos_convertidos['totalamount'].sum(
-    ) if not pedidos_convertidos.empty else 0
+    tab1, tab2, tab3= st.tabs(["Campanhas (Por Loja)", "Visão Financeira (Por Loja)", "Visão Geral (Todas as Lojas)"])
+    
+    with tab1:
 
-    data_lancamento = campanhas_total[campanhas_total['name']
-                                      == campanha_selecionada]['sendat'].min()
+        clientes_convertidos = set(pedidos_convertidos['customerid'].unique(
+        )) if not pedidos_convertidos.empty else set()
+        taxa_conversao = (len(clientes_convertidos) / len(impactados)
+                          * 100) if len(impactados) > 0 else 0
+        receita_direta = pedidos_convertidos['totalamount'].sum(
+        ) if not pedidos_convertidos.empty else 0
 
-    if not pd.isna(data_lancamento):
-        janela_anterior = (pedidos_loja['createdat'] >= data_lancamento - pd.Timedelta(
-            days=7)) & (pedidos_loja['createdat'] < data_lancamento)
-        janela_posterior = (pedidos_loja['createdat'] >= data_lancamento) & (
-            pedidos_loja['createdat'] <= data_lancamento + pd.Timedelta(days=7))
+        data_lancamento = campanhas_total[campanhas_total['name']
+                                          == campanha_selecionada]['sendat'].min()
+
+        if not pd.isna(data_lancamento):
+            janela_anterior = (pedidos_loja['createdat'] >= data_lancamento - pd.Timedelta(
+                days=7)) & (pedidos_loja['createdat'] < data_lancamento)
+            janela_posterior = (pedidos_loja['createdat'] >= data_lancamento) & (
+                pedidos_loja['createdat'] <= data_lancamento + pd.Timedelta(days=7))
+
+            if col_store_id_pedidos:
+                rec_antes = pedidos_loja.loc[janela_anterior & (
+                    pedidos_loja[col_store_id_pedidos] == id_loja_campanha), 'totalamount'].sum()
+                rec_depois = pedidos_loja.loc[janela_posterior & (
+                    pedidos_loja[col_store_id_pedidos] == id_loja_campanha), 'totalamount'].sum()
+            else:
+                rec_antes = pedidos_loja.loc[janela_anterior, 'totalamount'].sum(
+                )
+                rec_depois = pedidos_loja.loc[janela_posterior,
+                                              'totalamount'].sum()
+
+            variacao_loja = rec_depois - rec_antes
+            porcentagem_variacao = (
+                variacao_loja / rec_antes * 100) if rec_antes > 0 else 0
+
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Clientes Impactados",
+                        f"{len(impactados):,}".replace(",", "."))
+            col2.metric("Clientes Convertidos",
+                        f"{len(clientes_convertidos):,}".replace(",", "."))
+            col3.metric("Taxa de Conversão",
+                        f"{taxa_conversao:.2f}%".replace(".", ","))
+
+            st.markdown("---")
+
+            col4, col5, col6 = st.columns(3)
+            col4.metric("Data de Lançamento",
+                        data_lancamento.strftime('%d/%m/%Y'))
+            col5.metric("Receita Direta Campanha",
+                        formatar_moeda(receita_direta))
+            col6.metric("Performance Total da Loja", f"{porcentagem_variacao:.2f}%".replace(
+                ".", ","), delta=formatar_moeda(variacao_loja))
+
+            st.subheader(f"Evolução Diária da Receita - {nome_loja_atual}")
+            df_receita_diaria = pedidos_loja.copy()
+            if col_store_id_pedidos:
+                df_receita_diaria = df_receita_diaria[df_receita_diaria[col_store_id_pedidos]
+                                                      == id_loja_campanha]
+
+            df_receita_diaria['data'] = df_receita_diaria['createdat'].dt.date
+            rec_agrupada = df_receita_diaria.groupby(
+                'data')['totalamount'].sum().reset_index()
+            rec_agrupada['data'] = pd.to_datetime(
+                rec_agrupada['data']).dt.tz_localize('UTC')
+
+            mask = (rec_agrupada['data'] >= data_lancamento - pd.Timedelta(days=7)
+                    ) & (rec_agrupada['data'] <= data_lancamento + pd.Timedelta(days=7))
+            dados_grafico = rec_agrupada.loc[mask].copy()
+            dados_grafico['data_formatada'] = dados_grafico['data'].dt.strftime(
+                '%d/%m')
+
+            grafico = alt.Chart(dados_grafico).mark_bar(
+                color=alt.Gradient(
+                    gradient='linear',
+                    stops=[alt.GradientStop(color="#491a13", offset=0), alt.GradientStop(
+                        color='#913322', offset=1)],
+                    x1=1, x2=1, y1=1, y2=0.3
+                ),
+                cornerRadius=25,
+            ).encode(
+                x=alt.X('data_formatada:N', title='Data', sort=None),
+                y=alt.Y('totalamount:Q', title='Receita Total')
+            ).properties(height=400)
+
+            st.altair_chart(grafico, use_container_width=True)
+        else:
+            st.warning(
+                "Data de lançamento não disponível para a campanha selecionada.")
+
+    with tab2:
+        def ticket_medio(pedidos_filtrados):
+            if not pedidos_filtrados.empty:
+                return pedidos_filtrados['totalamount'].mean()
+            return 0
+
+        st.subheader(f"Métricas Financeiras - {nome_loja_atual}")
 
         if col_store_id_pedidos:
-            rec_antes = pedidos_loja.loc[janela_anterior & (
-                pedidos_loja[col_store_id_pedidos] == id_loja_campanha), 'totalamount'].sum()
-            rec_depois = pedidos_loja.loc[janela_posterior & (
-                pedidos_loja[col_store_id_pedidos] == id_loja_campanha), 'totalamount'].sum()
+            pedidos_da_loja = pedidos_loja[pedidos_loja[col_store_id_pedidos] == id_loja_campanha]
         else:
-            rec_antes = pedidos_loja.loc[janela_anterior, 'totalamount'].sum()
-            rec_depois = pedidos_loja.loc[janela_posterior,
-                                          'totalamount'].sum()
+            pedidos_da_loja = pedidos_loja
 
-        variacao_loja = rec_depois - rec_antes
-        porcentagem_variacao = (
-            variacao_loja / rec_antes * 100) if rec_antes > 0 else 0
+        col7, col8 = st.columns(2)
 
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Clientes Impactados",
-                    f"{len(impactados):,}".replace(",", "."))
-        col2.metric("Clientes Convertidos",
-                    f"{len(clientes_convertidos):,}".replace(",", "."))
-        col3.metric("Taxa de Conversão",
-                    f"{taxa_conversao:.2f}%".replace(".", ","))
+        receita_geral_loja = pedidos_da_loja['totalamount'].sum()
+        col7.metric("Receita Geral da Loja", formatar_moeda(receita_geral_loja))
+
+        valor_ticket_medio = ticket_medio(pedidos_da_loja)
+        col8.metric("Ticket Médio", formatar_moeda(valor_ticket_medio))
 
         st.markdown("---")
 
-        col4, col5, col6 = st.columns(3)
-        col4.metric("Data de Lançamento", data_lancamento.strftime('%d/%m/%Y'))
-        col5.metric("Receita Direta Campanha", formatar_moeda(receita_direta))
-        col6.metric("Performance Total da Loja", f"{porcentagem_variacao:.2f}%".replace(
-            ".", ","), delta=formatar_moeda(variacao_loja))
+    with tab3:
+        st.subheader("Visão Geral - Todas as Lojas")
+        receita_total = pedidos_loja['totalamount'].sum()
+        ticket_medio_geral = pedidos_loja['totalamount'].mean()
+        col9, col10 = st.columns(2)
+        col9.metric("Receita Total", formatar_moeda(receita_total))
+        col10.metric("Ticket Médio Geral", formatar_moeda(ticket_medio_geral))
 
-        st.subheader(f"Evolução Diária da Receita - {nome_loja_atual}")
-        df_receita_diaria = pedidos_loja.copy()
-        if col_store_id_pedidos:
-            df_receita_diaria = df_receita_diaria[df_receita_diaria[col_store_id_pedidos]
-                                                  == id_loja_campanha]
+        pedidos_loja['nome_loja'] = pedidos_loja[col_store_id_pedidos].map(mapa_lojas) if col_store_id_pedidos else "Desconhecida"
+        
+        faturamento_lojas = (
+            pedidos_loja
+            .groupby('nome_loja', as_index=False)['totalamount']
+            .sum()
+            .sort_values(by='totalamount', ascending=False)
+            .head(15)
+        )
 
-        df_receita_diaria['data'] = df_receita_diaria['createdat'].dt.date
-        rec_agrupada = df_receita_diaria.groupby(
-            'data')['totalamount'].sum().reset_index()
-        rec_agrupada['data'] = pd.to_datetime(
-            rec_agrupada['data']).dt.tz_localize('UTC')
+        st.subheader("Faturamento Top 15 Lojas")
+        col_pizza, col_info = st.columns([2, 1])
 
-        mask = (rec_agrupada['data'] >= data_lancamento - pd.Timedelta(days=7)
-                ) & (rec_agrupada['data'] <= data_lancamento + pd.Timedelta(days=7))
-        dados_grafico = rec_agrupada.loc[mask].copy()
-        dados_grafico['data_formatada'] = dados_grafico['data'].dt.strftime(
-            '%d/%m')
+        with col_pizza:
+            chart_pizza = alt.Chart(faturamento_lojas).mark_arc(innerRadius=90).encode(
+                theta=alt.Theta(field="totalamount", type="quantitative"),
+                color=alt.Color(field="nome_loja", type="nominal", legend=alt.Legend(title="Lojas")),
+                tooltip=[alt.Tooltip('nome_loja', title='Loja'), alt.Tooltip('totalamount', title='Faturamento', format='.2f')]
+            ).properties(height=400)
+            st.altair_chart(chart_pizza, use_container_width=True)
+        with col_info:
+            st.markdown("### Insights Gerais")
+            st.markdown(f"A loja com maior faturamento é **{faturamento_lojas.iloc[0]['nome_loja']}** com um total de **{formatar_moeda(faturamento_lojas.iloc[0]['totalamount'])}**.")
+            st.markdown(f"A média de faturamento entre as top 15 lojas é de **{formatar_moeda(faturamento_lojas['totalamount'].mean())}**.")
+            st.markdown(f"A loja com o menor faturamento é **{faturamento_lojas.iloc[-1]['nome_loja']}** com um total de **{formatar_moeda(faturamento_lojas.iloc[-1]['totalamount'])}**.")
+            st.markdown("A distribuição de faturamento mostra que algumas lojas têm um desempenho significativamente melhor do que outras, indicando oportunidades para análise de estratégias e práticas adotadas por essas lojas de destaque.")
 
-        grafico = alt.Chart(dados_grafico).mark_bar(
-            color=alt.Gradient(
-                gradient='linear',
-                stops=[alt.GradientStop(color="#491a13", offset=0), alt.GradientStop(
-                    color='#913322', offset=1)],
-                x1=1, x2=1, y1=1, y2=0.3
-            ),
-            cornerRadius=25,
-        ).encode(
-            x=alt.X('data_formatada:N', title='Data', sort=None),
-            y=alt.Y('totalamount:Q', title='Receita Total')
+        st.markdown("---")
+        st.subheader("Pedidos por canal de venda")
+
+        pedidos_canal = pedidos_loja['saleschannel'].value_counts().reset_index()
+
+        chart_barras = alt.Chart(pedidos_canal).mark_bar().encode(
+            x=alt.X('saleschannel:N', title='Canal de Venda', sort='-y'),
+            y=alt.Y('count:Q', title='Quantidade de Pedidos'),
+            color=alt.Color('saleschannel:N'),
+            tooltip=[alt.Tooltip('saleschannel', title='Canal de Venda'), alt.Tooltip('count', title='Quantidade de Pedidos')]
         ).properties(height=400)
 
-        st.altair_chart(grafico, use_container_width=True)
-    else:
-        st.warning(
-            "Data de lançamento não disponível para a campanha selecionada.")
-        
+        st.altair_chart(chart_barras, use_container_width=True)
+
+
+
+
+    st.markdown("---")
+
+
+
+
+
     st.sidebar.header("Visão Estratégica com IA")
     with st.sidebar.container():
         st.markdown("---")
@@ -274,8 +361,6 @@ def main():
                     impactados), 'conversao': taxa_conversao, 'receita_direta': receita_direta}
                 st.markdown(
                     f'<div class="ia-insight-box">💡 <b>Insight:</b><br>{obter_insight_ia(campanha_selecionada, resumo)}</div>', unsafe_allow_html=True)
-
-    
 
 
 if __name__ == "__main__":
