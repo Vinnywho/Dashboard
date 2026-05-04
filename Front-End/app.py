@@ -127,17 +127,11 @@ def carregar_dados():
     df_pedidos_loja = pd.read_csv('../data/STOREORDER.csv')
     df_stores = pd.read_csv('../data/STORE.CSV')
 
-    col_id_store = next((c for c in [
-                        'id', 'storeid', 'STOREID'] if c in df_stores.columns), df_stores.columns[0])
-    col_nome_store = next((c for c in ['nome_store', 'nomestore', 'NOME_STORE',
-                          'name', 'nome'] if c in df_stores.columns), df_stores.columns[1])
+    mapa_lojas = dict(zip(df_stores['id'], df_stores['name']))
 
-    mapa_lojas = df_stores.set_index(col_id_store)[col_nome_store].to_dict()
-
-    df_campanhas['sendat'] = pd.to_datetime(
-        df_campanhas['sendat'], errors='coerce', utc=True)
-    df_pedidos_loja['createdat'] = pd.to_datetime(
-        df_pedidos_loja['createdat'], errors='coerce', utc=True)
+    for df, col in [(df_campanhas, 'sendat'), (df_pedidos_loja, 'createdat')]:
+        df[col] = pd.to_datetime(df[col], errors='coerce', utc=True)
+    df_pedidos_loja['scheduledat'] = pd.to_datetime(df_pedidos_loja['scheduledat'], format='mixed')
 
     return df_campanhas, df_conversoes, df_pedidos_loja, mapa_lojas
 
@@ -181,7 +175,7 @@ def main():
         campanha_selecionada, campanhas_total, conversoes_total, pedidos_loja, mapa_lojas
     )
 
-    tab1, tab2, tab3= st.tabs(["Campanhas (Por Loja)", "Visão Financeira (Por Loja)", "Visão Geral (Todas as Lojas)"])
+    tab1, tab2, tab3, tab4 = st.tabs(["Campanhas (Por Loja)", "Visão Financeira (Por Loja)", "Visão Geral (Todas as Lojas)", "Testes de cálculos"])
     
     with tab1:
 
@@ -297,9 +291,12 @@ def main():
         st.subheader("Visão Geral - Todas as Lojas")
         receita_total = pedidos_loja['totalamount'].sum()
         ticket_medio_geral = pedidos_loja['totalamount'].mean()
-        col9, col10 = st.columns(2)
+        # status_16 = pedidos_loja[pedidos_loja['status'] == 16]
+        # receita_status_16 = status_16['subtotalamount'].sum()
+        col9, col10, col11 = st.columns(3)
         col9.metric("Receita Total", formatar_moeda(receita_total))
         col10.metric("Ticket Médio Geral", formatar_moeda(ticket_medio_geral))
+        # col11.metric("Pedidos com Status 16", formatar_moeda(receita_status_16))
 
         pedidos_loja['nome_loja'] = pedidos_loja[col_store_id_pedidos].map(mapa_lojas) if col_store_id_pedidos else "Desconhecida"
         
@@ -309,7 +306,7 @@ def main():
             .sum()
             .sort_values(by='totalamount', ascending=False)
             .head(15)
-        )
+        ) 
 
         st.subheader("Faturamento Top 15 Lojas")
         col_pizza, col_info = st.columns([2, 1])
@@ -344,10 +341,304 @@ def main():
 
 
 
-
     st.markdown("---")
 
+    with tab4:
+        st.subheader("Testes de Cálculos e Métricas")
+        st.markdown("Aqui você pode realizar testes rápidos de cálculos ou métricas específicas relacionadas às campanhas ou lojas. Insira os valores desejados para obter resultados instantâneos.")
 
+        st.title("1 - Estrutura da Receita")
+        st.subheader("Indice 1.1 - Decomposição da Receita Reportada")
+        status_16 = pedidos_loja[pedidos_loja['status'] == 16]
+        receita_status_16 = status_16['subtotalamount'].sum()
+        st.markdown(f"**Subtotal de Pedidos com Status 16:** {formatar_moeda(receita_status_16)}")
+        st.markdown(f"**Total de descontos com Status 16:** {formatar_moeda(status_16['discountamount'].sum())}")
+        st.markdown(f"**Total de taxas com Status 16:** {formatar_moeda(status_16['taxamount'].sum())}")
+        st.markdown(f"**Receita total com Status 16:** {formatar_moeda(status_16['totalamount'].sum())}")
+        st.markdown(f"**Porcentagem do total de receita**: {receita_status_16 / (status_16['totalamount'].sum()) * 100:.2f}%")
+        st.markdown(f"**Porcentagem sobre as taxas com Status 16**: {status_16['taxamount'].sum() / (status_16['totalamount'].sum()) * 100:.2f}%")
+        st.markdown("---")
+
+        st.subheader("Índice 1.2 - Receita Líquida Comercial")
+        st.markdown(f"**Receita líquida comercial:** {formatar_moeda(receita_status_16 - (status_16['discountamount'].sum()))}")
+        st.markdown(f"**Taxa de desconto sobre subtotal:** {status_16['discountamount'].sum() / status_16['subtotalamount'].sum() * 100:.2f}%")
+        st.markdown("---")
+
+        st.subheader("Índice 1.3 - Taxa de Realização da Receita")
+        st.markdown(f"**Receita potencial:** {len(pedidos_loja) * status_16['totalamount'].mean():,.2f}".replace(",", "."))
+        st.markdown(f"**Receita realizada:** {formatar_moeda(status_16['totalamount'].sum())}")
+        st.markdown(f"**Índice de realização:** {status_16['totalamount'].sum() / (len(pedidos_loja) * status_16['totalamount'].mean()) * 100:.2f}%")
+        st.markdown("---")
+
+        st.subheader("Índice 1.4 - Custo de Oportunidade dos Não-Concluídos")
+        st.markdown(f"**Pedidos não concluidos:** {len(pedidos_loja) - len(status_16)}")
+        st.markdown(f"**Receita não realizada:** {formatar_moeda((len(pedidos_loja) - len(status_16)) * status_16['totalamount'].mean())}")
+        st.markdown(f"**Porcentagem de receita não realizada:** {(len(pedidos_loja) - len(status_16)) * status_16['totalamount'].mean() / status_16['totalamount'].sum() * 100:.2f}%")
+        st.markdown("---")
+
+        st.title("2 - Cancelamento e Qualidade")
+        st.subheader("Índice 2.1 - Taxa de Cancelamento Efetivo")
+        cancelados_8 = pedidos_loja[pedidos_loja['status'] == 8]
+        cancelados_11 = pedidos_loja[pedidos_loja['status'] == 11]
+        cancelados_14 = pedidos_loja[pedidos_loja['status'] == 14]
+        cancelados = pd.concat([cancelados_8, cancelados_11, cancelados_14])
+        st.markdown(f"**Pedidos cancelados:** {len(cancelados)}")
+        st.markdown(f"**Taxa de cancelamento:** {len(cancelados) / len(pedidos_loja) * 100:.2f}%")
+        st.markdown("---")
+
+        st.subheader("Índice 2.2 - Decomposição do Cancelamento por Origem")
+        st.markdown(f"**Cancelados por estabelecimento:** {len(cancelados_8) / len(pedidos_loja) * 100:.2f}%")
+        st.markdown(f"**Cancelados por cliente:** {len(cancelados_11) / len(pedidos_loja) * 100:.2f}%")
+        st.markdown(f"**Expirados/timeout:** {len(cancelados_14) / len(pedidos_loja) * 100:.2f}%")
+        st.markdown(f"**Soma das tres causas:** {len(cancelados) / len(pedidos_loja) * 100:.2f}%")
+        st.markdown("---")
+
+        st.subheader("Índice 2.3 - Receita Perdida por Cancelamento Efetivo")
+        st.markdown(f"**Receita perdida por cancelamento:** {formatar_moeda(cancelados['totalamount'].sum())}")
+        st.markdown(f"**Receita perdida por cancelamento:** {formatar_moeda(len(cancelados) * status_16['totalamount'].mean())}")
+        st.markdown(f"**Porcentagem de receita perdida por cancelamento:** {(len(cancelados) * status_16['totalamount'].mean()) / status_16['totalamount'].sum() * 100:.2f}%")
+        st.markdown("---")
+
+        st.title("3 - Eficiência e Produtividade")
+        st.subheader("Índice 3.1 - Taxa de Ativação de Lojas")
+        st.markdown(f"**Lojas cadastradadas:** {len(mapa_lojas)}")
+        st.markdown(f"**Lojas ativas:** {pedidos_loja[col_store_id_pedidos].nunique() if col_store_id_pedidos else 0}")
+        st.markdown(f"**Taxa de inativação:** {((pedidos_loja[col_store_id_pedidos].nunique() if col_store_id_pedidos else 0)) / len(mapa_lojas) * 100:.2f}%")
+        st.markdown("---")
+
+        st.subheader("Índice 3.2 - Receita Média por Loja Ativa")
+        st.markdown(f"**Receita por Loja Ativa:** {formatar_moeda(status_16['totalamount'].sum() / (pedidos_loja[col_store_id_pedidos].nunique() if col_store_id_pedidos else 0))}")
+        st.markdown(f"**Receita Mensal Média/Loja:** {formatar_moeda(status_16['totalamount'].sum() / (pedidos_loja[col_store_id_pedidos].nunique() if col_store_id_pedidos else 0) / 9)}")
+        st.markdown("---")
+
+        st.subheader("Índice 3.3 - Receita Média Diária da Operação")
+        periodo_dias = (pedidos_loja['scheduledat'].max() - pedidos_loja['scheduledat'].min()).days + 1
+        st.markdown(f"**Periodo:** {periodo_dias}")
+        st.markdown(f"**Receita Dia:** {formatar_moeda(status_16['totalamount'].sum() / periodo_dias)}")
+        st.markdown(f"**Pedidos Dia:** {len(status_16) / periodo_dias:.2f}")
+        st.markdown("---")
+
+        st.subheader("Índice 3.4 - Volume Médio por Loja Ativa")
+        st.markdown(f"**Pedidos por loja ativa:** {len(status_16) / (pedidos_loja[col_store_id_pedidos].nunique() if col_store_id_pedidos else 0):.2f}")
+        st.markdown(f"**Pedidos/Loja/Mês:** {len(status_16) / (pedidos_loja[col_store_id_pedidos].nunique() if col_store_id_pedidos else 0) / 9:.2f}")
+        st.markdown("---")
+
+        st.subheader("Índice 3.5 - ARPU — Receita Média por Cliente")
+        st.markdown(f"**Cliente com pedido com status 16:** {status_16['customerid'].nunique() if status_16['customerid'].nunique() > 0 else 0}")
+        st.markdown(f"**ARPU:** {status_16['totalamount'].sum() / status_16['customerid'].nunique() if status_16['customerid'].nunique() > 0 else 0:.2f}")
+        st.markdown("---")
+
+        st.title("4 - Concentração e Risco")
+        st.subheader("Índice 4.1 - HHI — Concentração por Canal de Venda") #Quase todos os resultados deram diferente, não entendo nada aqui nesse
+        receita_total = pedidos_loja['subtotalamount'].sum()
+        st.markdown(f"**Receita Total:** {formatar_moeda(receita_total)}")
+        receita_por_canal = pedidos_loja.groupby('saleschannel')['subtotalamount'].sum()
+        shares_receita = receita_por_canal / receita_total
+        hhi_total_receita = (shares_receita**2).sum() * 10000
+        canal_selecionado = st.selectbox("**Canal de venda:**", pedidos_loja['saleschannel'].unique())
+        receita_canal_selecionado = pedidos_loja[pedidos_loja['saleschannel'] == canal_selecionado]['subtotalamount'].sum()
+        share_receita_canal = (receita_canal_selecionado / receita_total) * 10000
+        st.markdown(f"**Share ({canal_selecionado}):** {share_receita_canal:.2f}")
+        share_receita_quadrado = (share_receita_canal / 10000)**2 * 10000
+        st.markdown(f"**Share ao quadrado:** {share_receita_quadrado:.2f}") 
+        st.markdown(f"**O maior share é**: {shares_receita.max() * 100:.2f}% do {receita_por_canal.idxmax()}") #Deu diferente
+        st.markdown(f"**HHI Total do Mercado:** {hhi_total_receita:.2f}") #Deu diferente
+        if hhi_total_receita > 5000:
+            st.markdown("O mercado é um monopólio")
+        elif hhi_total_receita > 2500:
+            st.markdown("O mercado possui alta concentração")
+        elif hhi_total_receita > 1500:
+            st.markdown("O mercado está com concentração moderada")
+        else:
+            st.markdown("O mercado está desconcentrado")
+
+        st.subheader("Índice 4.2 - HHI — Concentração por Loja")
+        st.markdown(f"**Receita Total:** {formatar_moeda(receita_total)}")
+        receita_por_loja = pedidos_loja.groupby('nome_loja')['subtotalamount'].sum()
+        shares_receita_loja = receita_por_loja / receita_total
+        hhi_total_receita_loja = (shares_receita_loja**2).sum() * 10000
+        loja_selecionada = st.selectbox("**Loja:**", sorted(pedidos_loja['nome_loja'].unique()))
+        receita_loja_selecionada = pedidos_loja[pedidos_loja['nome_loja'] == loja_selecionada]['subtotalamount'].sum()
+        share_receita_loja = (receita_loja_selecionada / receita_total) * 10000
+        st.markdown(f"**Share ({loja_selecionada}):** {share_receita_loja:.2f}")
+        share_receita_loja_quadrado = (share_receita_loja / 10000)**2 * 10000
+        st.markdown(f"**Share ao quadrado:** {share_receita_loja_quadrado:.2f}")
+        maior_loja_nome = receita_por_loja.idxmax()
+        st.markdown(f"**O maior share é**: {shares_receita_loja.max() * 100:.2f}% da loja {maior_loja_nome}") #Deu diferente
+        st.markdown(f"**HHI Total do Mercado:** {hhi_total_receita_loja:.2f}") #Deu diferente
+        if hhi_total_receita_loja > 5000:
+            st.markdown("O mercado é um monopólio")
+        elif hhi_total_receita_loja > 2500:
+            st.markdown("O mercado possui alta concentração")
+        elif hhi_total_receita_loja > 1500:
+            st.markdown("O mercado está com concentração moderada")
+        else:
+            st.markdown("O mercado está desconcentrado")
+        st.markdown("---")
+
+        st.subheader("Índice 4.3 - Curva ABC de Receita por Loja")
+        receita_por_loja = status_16.groupby('nome_loja')['subtotalamount'].sum().sort_values(ascending=False)
+        receita_total_abc = receita_por_loja.sum()
+        shares_abc = receita_por_loja / receita_total_abc
+        top_1_val = shares_abc.iloc[0] * 100
+        top_4_val = shares_abc.iloc[:4].sum() * 100
+        top_10_val = shares_abc.iloc[:10].sum() * 100
+        n_lojas_total = len(receita_por_loja)
+        n_vinte_pct = round(n_lojas_total * 0.2)
+        top_20_pct_val = shares_abc.iloc[:n_vinte_pct].sum() * 100
+        st.markdown(f"**Top 1 Loja (Share):** {top_1_val:.2f}%")
+        st.markdown(f"**Top 4 Lojas (Acumulado):** {top_4_val:.2f}%")
+        st.markdown(f"**Top 10 Lojas (Acumulado):** {top_10_val:.2f}%")
+        st.markdown(f"**Top 20% ({n_vinte_pct} Lojas):** {top_20_pct_val:.2f}%")
+        st.markdown("---")
+
+        st.subheader("Índice 4.4 - Coeficiente de Gini de Receita por Loja")
+        st.markdown(f"**Gini de lojas:** {(shares_abc**2).sum():.2f}")
+        if (shares_abc**2).sum() > 0.5:
+            st.markdown("Muito alta desigualdade")
+        elif (shares_abc**2).sum() > 0.25:
+            st.markdown("Alta desigualdade")
+        elif (shares_abc**2).sum() > 0.1:
+            st.markdown("Desigualdade moderada")
+        else:
+            st.markdown("Desigualdade baixa")
+        st.markdown("---")
+
+        st.title("5 - Indicadores Promocionais")
+        st.subheader("Índice 5.1 - Investimento Promocional como % da Receita")
+        st.markdown(f"**Investimento promocional:** {formatar_moeda(status_16['discountamount'].sum())}")
+        st.markdown(f"**Porcentagem sobre receita:** {status_16['discountamount'].sum() / status_16['totalamount'].sum() * 100:.2f}%")
+        st.markdown(f"**Porcentagem sobre subtotal:** {status_16['discountamount'].sum() / status_16['subtotalamount'].sum() * 100:.2f}%")
+        st.markdown("---")
+
+        st.subheader("Índice 5.2 - Profundidade Média do Desconto")
+        st.markdown(f"**Pedidos com desconto:** {len(status_16[status_16['discountamount'] > 0])}")
+        st.markdown(f"**Porcentagem de pedidos com desconto:** {len(status_16[status_16['discountamount'] > 0]) / len(status_16) * 100:.2f}%")
+        st.markdown(f"**Subtotal dos beneficiados:** {formatar_moeda(status_16[status_16['discountamount'] > 0]['subtotalamount'].sum())}")
+        st.markdown(f"**Profundidade Média:** {status_16['discountamount'].sum() / status_16[status_16['discountamount'] > 0]['subtotalamount'].sum() * 100:.2f}%")
+        st.markdown(f"**Desconto absoluto médio:** {formatar_moeda(status_16[status_16['discountamount'] > 0]['discountamount'].mean())}")
+        st.markdown("---")
+
+        st.subheader("Índice 5.3 - Análise de Uplift — Ticket com vs sem Desconto")
+        st.markdown(f"**Ticket - pedidos com desconto:** {formatar_moeda(status_16[status_16['discountamount'] > 0]['totalamount'].mean())}")
+        st.markdown(f"**Ticket - pedidos sem desconto:** {formatar_moeda(status_16[status_16['discountamount'] == 0]['totalamount'].mean())}")
+        st.markdown(f"**Uplift:** {(status_16[status_16['discountamount'] > 0]['totalamount'].mean() - status_16[status_16['discountamount'] == 0]['totalamount'].mean()) / status_16[status_16['discountamount'] == 0]['totalamount'].mean() * 100:.2f}%")
+        st.markdown("---")
+        
+        st.subheader("Índice 5.4 - Custo Promocional por Pedido Beneficiado")
+        st.markdown(f"**Custo / Pedido c/ Desconto:** {formatar_moeda(status_16[status_16['discountamount'] > 0]['discountamount'].mean())}")
+        st.markdown(f"**Custo / Pedido (geral):** {formatar_moeda(status_16['discountamount'].mean())}")
+        st.markdown(f"**Custo promocional diluido:** {formatar_moeda(status_16[status_16['discountamount'] > 0]['discountamount'].mean() - status_16['discountamount'].mean())}")
+        st.markdown("---")
+
+        st.subheader("Índice 5.5 - Receita Atribuída a Campanhas")
+        status_2 = conversoes_total[conversoes_total['status'] == 2]
+        st.markdown(f"**Menagens enviadas:** {len(status_2)}")
+        status_4 = conversoes_total[conversoes_total['status'] == 4]
+        st.markdown(f"**Conversões Atribuidas:** {len(status_4)}")
+        st.markdown(f"**Taxa de conversão:** {len(status_4) / len(status_2) * 100:.2f}%")
+        st.markdown(f"**Receita atribuida (status 4):** {formatar_moeda(status_4['totalamount'].sum())}")
+        st.markdown(f"**Receita atribuida em porcentagem da receita total:** {status_4['totalamount'].sum() / status_16['totalamount'].sum() * 100:.2f}%")
+        st.markdown(f"**Receita por mensagem enviada:** {formatar_moeda(status_4['totalamount'].sum() / len(status_2))}")
+        st.markdown("---")
+
+        st.title("6 - Crescimento e Sazonalidade")
+        st.subheader("Índice 6.1 - CMGR — Compound Monthly Growth Rate") #Não sei para que serve
+        st.markdown(f"**Receita mai/2025:** {formatar_moeda(status_16[status_16['createdat'].dt.month == 5]['totalamount'].sum())}")
+        st.markdown(f"**Receita jan/2026:** {formatar_moeda(status_16[status_16['createdat'].dt.month == 1]['totalamount'].sum())}")
+        st.markdown(f"**Periodos compostos:** {9 - 1}") # Não sei de onde saiu esse 9
+        st.markdown(f"**CMGR:** {((status_16[status_16['createdat'].dt.month == 1]['totalamount'].sum() / status_16[status_16['createdat'].dt.month == 5]['totalamount'].sum()) ** (1/(9-1)) - 1) * 100:.2f}%")
+        st.markdown(f"Equivalente anual: {(1 + ((status_16[status_16['createdat'].dt.month == 1]['totalamount'].sum() / status_16[status_16['createdat'].dt.month == 5]['totalamount'].sum()) ** (1/(9-1)) - 1))**12 - 1 :.2f}% a.a.")#Deu MUITO diferente
+        st.markdown("---")
+
+        st.subheader("Índice 6.2 - Coeficiente de Variação Mensal da Receita") #Deu TUDO diferente
+        st.markdown(f"**Média mensal:** {formatar_moeda(status_16.groupby(status_16['createdat'].dt.month)['totalamount'].sum().mean())}")
+        st.markdown(f"**Desvio padrão mensal:** {formatar_moeda(status_16.groupby(status_16['createdat'].dt.month)['totalamount'].sum().std())}")
+        st.markdown(f"**CV mensal:** {status_16.groupby(status_16['createdat'].dt.month)['totalamount'].sum().std() / status_16.groupby(status_16['createdat'].dt.month)['totalamount'].sum().mean() * 100:.2f}%")
+        st.markdown("---")
+
+        st.subheader("Índice 6.3 - Concentração de Receita por Período do Dia")
+        st.markdown(f"**Receita Noite porcentagem (18 - 23h):** {status_16[(status_16['createdat'].dt.hour >= 18) & (status_16['createdat'].dt.hour <= 23)]['totalamount'].sum() / status_16['totalamount'].sum() * 100:.2f}%")
+        st.markdown(f"**Pedidos Noite porcentagem (18 - 23h):** {len(status_16[(status_16['createdat'].dt.hour >= 18) & (status_16['createdat'].dt.hour <= 23)]) / len(status_16) * 100:.2f}%")
+        st.markdown(f"**HHI por Periodo:** {status_16.groupby(status_16['createdat'].dt.month)['totalamount'].sum().std() / status_16.groupby(status_16['createdat'].dt.month)['totalamount'].sum().mean()}") #NÃO ENTENDI ABSOLUTAMENTE NADA DESSE HHI POR PERIODO
+        st.markdown("---")
+
+        st.subheader("Índice 6.4 - Variação Mensal da Receita") #Deu TUDO diferente, mas pelo menos eu entendi
+        st.markdown(f"**Variação mensal da receita (mai -> jun):** {((status_16[status_16['createdat'].dt.month == 6]['totalamount'].sum() - status_16[status_16['createdat'].dt.month == 5]['totalamount'].sum()) / status_16[status_16['createdat'].dt.month == 5]['totalamount'].sum()) * 100:.2f}%")
+        st.markdown(f"**Variação mensal da receita (jun -> jul):** {((status_16[status_16['createdat'].dt.month == 7]['totalamount'].sum() - status_16[status_16['createdat'].dt.month == 6]['totalamount'].sum()) / status_16[status_16['createdat'].dt.month == 6]['totalamount'].sum()) * 100:.2f}%")
+        st.markdown(f"**Variação mensal da receita (jul -> ago):** {((status_16[status_16['createdat'].dt.month == 8]['totalamount'].sum() - status_16[status_16['createdat'].dt.month == 7]['totalamount'].sum()) / status_16[status_16['createdat'].dt.month == 7]['totalamount'].sum()) * 100:.2f}%")
+        st.markdown(f"**Variação mensal da receita (ago -> set):** {((status_16[status_16['createdat'].dt.month == 9]['totalamount'].sum() - status_16[status_16['createdat'].dt.month == 8]['totalamount'].sum()) / status_16[status_16['createdat'].dt.month == 8]['totalamount'].sum()) * 100:.2f}%")
+        st.markdown(f"**Variação mensal da receita (set -> out):** {((status_16[status_16['createdat'].dt.month == 10]['totalamount'].sum() - status_16[status_16['createdat'].dt.month == 9]['totalamount'].sum()) / status_16[status_16['createdat'].dt.month == 9]['totalamount'].sum()) * 100:.2f}%")
+        st.markdown(f"**Variação mensal da receita (out -> nov):** {((status_16[status_16['createdat'].dt.month == 11]['totalamount'].sum() - status_16[status_16['createdat'].dt.month == 10]['totalamount'].sum()) / status_16[status_16['createdat'].dt.month == 10]['totalamount'].sum()) * 100:.2f}%")
+        st.markdown(f"**Variação mensal da receita (nov -> dez):** {((status_16[status_16['createdat'].dt.month == 12]['totalamount'].sum() - status_16[status_16['createdat'].dt.month == 11]['totalamount'].sum()) / status_16[status_16['createdat'].dt.month == 11]['totalamount'].sum()) * 100:.2f}%")
+        st.markdown(f"**Variação mensal da receita (dez -> jan):** {((status_16[status_16['createdat'].dt.month == 1]['totalamount'].sum() - status_16[status_16['createdat'].dt.month == 12]['totalamount'].sum()) / status_16[status_16['createdat'].dt.month == 12]['totalamount'].sum()) * 100:.2f}%")
+        st.markdown("---")
+
+        st.title("7 - Recorrência e Valor do Cliente")
+        st.subheader("Índice 7.1 - Taxa de Recorrência")
+        clientes_pedidos = status_16.groupby('customerid').size()
+        total_clientes_unicos = len(clientes_pedidos)
+        clientes_recorrentes = len(clientes_pedidos[clientes_pedidos > 1])
+        taxa_recorrencia = (clientes_recorrentes / total_clientes_unicos) * 100
+        st.markdown(f"**Clientes c/ Pedido Concluído:** {total_clientes_unicos:,}".replace(",", "."))
+        st.markdown(f"**Clientes Recorrentes:** {clientes_recorrentes:,}".replace(",", "."))
+        st.markdown(f"**Taxa de Recorrência:** {taxa_recorrencia:.2f}%".replace(".", ","))
+        st.markdown("---")
+
+        st.subheader("Índice 7.2 - Participação dos Recorrentes na Receita")
+        st.markdown(f"**Receita dos recorrentes:** {formatar_moeda(status_16[status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]['totalamount'].sum())}")
+        st.markdown(f"**Porcentagem da receita dos recorrentes:** {status_16[status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]['totalamount'].sum() / status_16['totalamount'].sum() * 100:.2f}%")
+        st.markdown(f"**Receita dos não recorrentes:** {formatar_moeda(status_16[~status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]['totalamount'].sum())}")
+        st.markdown(f"**Porcentagem da receita dos não recorrentes:** {status_16[~status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]['totalamount'].sum() / status_16['totalamount'].sum() * 100:.2f}%")
+        st.markdown("---")
+
+        st.subheader("Índice 7.3 - Frequência Média de Compra")
+        st.markdown(f"**Pedidos / Cliente (todos):** {len(status_16) / total_clientes_unicos:.2f} pediso/cliente")
+        st.markdown(f"**Pedidos / Cliente (recorrentes):** {len(status_16[status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]) / clientes_recorrentes:.2f} pedidos")
+        st.markdown(f"**Pedidos / Cliente (unicos):** {len(status_16[~status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]) / (total_clientes_unicos - clientes_recorrentes):.2f}")
+        st.markdown("---")
+
+        st.subheader("Índice 7.4 - ARPU Diferenciado")
+        st.markdown(f"**ARPU Recorrentes:** {status_16[status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]['totalamount'].sum() / clientes_recorrentes:.2f}")
+        st.markdown(f"**ARPU Não Recorrentes:** {status_16[~status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]['totalamount'].sum() / (total_clientes_unicos - clientes_recorrentes):.2f}")
+        st.markdown(f"**Multiplicador:** {(status_16[status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]['totalamount'].sum() / clientes_recorrentes) / (status_16[~status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]['totalamount'].sum() / (total_clientes_unicos - clientes_recorrentes)):.2f}")
+        st.markdown("---")
+
+        st.title("8 - Margem e Ponto de Equilíbrio")
+        st.subheader("Índice 8.1 - Margem de Contribuição Estimada")
+        st.markdown(f"**Receita Total:** {formatar_moeda(status_16['totalamount'].sum())}")
+        
+        cmv_percent = st.number_input("**CMV %:**" , min_value=0.0, max_value=100.0, value=32.0, step=0.1, key="cmv_percent")
+        st.markdown(f"**(-) CMV :** {formatar_moeda(status_16['totalamount'].sum() * (cmv_percent / 100))}")
+    
+        comissao_percent = st.number_input("**Comissão %:**" , min_value=0.0, max_value=100.0, value=18.0, step=0.1, key="comissao_percent")
+        st.markdown(f"**(-) Comissão :** {formatar_moeda(status_16['totalamount'].sum() * (comissao_percent / 100))}")
+
+        op_variavel_percent = st.number_input("**Custos Variáveis %:**" , min_value=0.0, max_value=100.0, value=8.0, step=0.1, key="op_variavel_percent")
+        st.markdown(f"**(-) Op. Variável :** {formatar_moeda(status_16['totalamount'].sum() * (op_variavel_percent / 100))}")
+
+        margem_contribuicao = status_16['totalamount'].sum() - (status_16['totalamount'].sum() * (cmv_percent / 100)) - (status_16['totalamount'].sum() * (comissao_percent / 100)) - (status_16['totalamount'].sum() * (op_variavel_percent / 100))
+        st.markdown(f"**Margem de Contribuição:** {formatar_moeda(margem_contribuicao)}")
+        margem_contribuicao_percent = margem_contribuicao / status_16['totalamount'].sum() * 100
+        st.markdown(f"**Margem de Contribuição %:** {margem_contribuicao_percent:.2f}%")
+        st.markdown("---")
+
+        st.subheader("Índice 8.3 - Ponto de Equilíbrio em Pedidos")
+        st.markdown(f"**MC unitária por periodo:** {formatar_moeda(status_16['totalamount'].mean() * (margem_contribuicao_percent / 100))} / pedido")
+        st.markdown(f"**Break-even RS 50k fixos:** {formatar_moeda(50000 / (status_16['totalamount'].mean() * (margem_contribuicao_percent / 100)))} pedidos / mês")
+        st.markdown(f"**Break-even RS 100k fixos:** {formatar_moeda(100000 / (status_16['totalamount'].mean() * (margem_contribuicao_percent / 100)))} pedidos / mês")
+        st.markdown(f"**Break-even RS 200k fixos:** {formatar_moeda(200000 / (status_16['totalamount'].mean() * (margem_contribuicao_percent / 100)))} pedidos / mês")
+        st.markdown("---")
+
+        st.subheader("Índice 8.4 - Margem Bruta de Canal (variando comissão)")
+        receita_por_canal = status_16.groupby('saleschannel')['totalamount'].sum()
+        margem_bruta_canal = (receita_por_canal / status_16['totalamount'].sum()) * 100
+        # margem_bruta_canal_percent = margem_bruta_canal / receita_por_canal * 100
+        canal_selecionado = st.selectbox("**Canal de venda:**", status_16['saleschannel'].unique(), key="canal_margem")
+        st.markdown(formatar_moeda(receita_por_canal[canal_selecionado]))
+        st.markdown(margem_bruta_canal[canal_selecionado])
+        st.markdown(f"**{canal_selecionado} ({margem_bruta_canal[canal_selecionado]:.2f}%)**: {formatar_moeda(receita_por_canal[canal_selecionado] * (margem_bruta_canal[canal_selecionado]))}")
+        st.markdown("---")
 
 
 
