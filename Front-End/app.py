@@ -233,7 +233,7 @@ def grafico_pizza(titulo, df):
             }
         ],
     }
-    return st_echarts(options=options, height="500px")
+    return st_echarts(options=options, height="400px")
 
 def grafico_semi_circulo(titulo, df):
     dados_echarts = [
@@ -428,6 +428,7 @@ def renderizar_tab_testes(pedidos_loja, status_16, col_store_id_pedidos, col_sto
             
             st.metric(label="Total de Receita", value=f"{pct_receita:.2f}%")
             st.metric(label="Sobre Taxas (Status 16)", value=f"{pct_taxas:.2f}%")
+
         st.markdown("---")
 
 
@@ -769,9 +770,6 @@ def renderizar_tab_testes(pedidos_loja, status_16, col_store_id_pedidos, col_sto
         custo_pedido_desconto = f"{status_16[status_16['discountamount'] > 0]['discountamount'].mean():.2f}"
         custo_pedido_geral = f"{status_16['discountamount'].mean():.2f}"
         custo_promocional_diluido = f"{status_16[status_16['discountamount'] > 0]['discountamount'].mean() - status_16['discountamount'].mean():.2f}"
-        # st.markdown(f"**Custo / Pedido c/ Desconto:** {formatar_moeda(status_16[status_16['discountamount'] > 0]['discountamount'].mean())}")
-        # st.markdown(f"**Custo / Pedido (geral):** {formatar_moeda(status_16['discountamount'].mean())}")
-        # st.markdown(f"**Custo promocional diluido:** {formatar_moeda(status_16[status_16['discountamount'] > 0]['discountamount'].mean() - status_16['discountamount'].mean())}")
 
         dados_grafico5_4 = pd.DataFrame({
                 'Categoria': ['Custo / Pedido c/ Desconto', 'Custo / Pedido (geral)', 'Custo promocional diluido'],
@@ -782,14 +780,19 @@ def renderizar_tab_testes(pedidos_loja, status_16, col_store_id_pedidos, col_sto
 
 
         st.subheader("Índice 5.5 - Receita Atribuída a Campanhas")
+        col29, col30 = st.columns(2)
         status_2 = conversoes_total[conversoes_total['status'] == 2]
-        st.markdown(f"**Menagens enviadas:** {len(status_2)}")
+        col29.metric("Menagens enviadas",f"{len(status_2)}")
         status_4 = conversoes_total[conversoes_total['status'] == 4]
-        st.markdown(f"**Conversões Atribuidas:** {len(status_4)}")
-        st.markdown(f"**Taxa de conversão:** {len(status_4) / len(status_2) * 100:.2f}%")
-        st.markdown(f"**Receita atribuida (status 4):** {formatar_moeda(status_4['totalamount'].sum())}")
-        st.markdown(f"**Receita atribuida em porcentagem da receita total:** {status_4['totalamount'].sum() / status_16['totalamount'].sum() * 100:.2f}%")
-        st.markdown(f"**Receita por mensagem enviada:** {formatar_moeda(status_4['totalamount'].sum() / len(status_2))}")
+        col29.metric("Conversões Atribuidas",f"{len(status_4)}")
+        taxa_de_conversao = f"{len(status_4) / len(status_2) * 100:.2f}"
+        receita_atribuida_porcentagem = f"{status_4['totalamount'].sum() / status_16['totalamount'].sum() * 100:.2f}"
+        col29.metric("Receita atribuida (status 4)",f"{formatar_moeda(status_4['totalamount'].sum())}")
+        col29.metric(f"Receita por mensagem enviada",f"{formatar_moeda(status_4['totalamount'].sum() / len(status_2))}")
+
+        with col30:
+            grafico_porcentagem("Taxa de conversão", taxa_de_conversao)
+            grafico_porcentagem("Receita atribuida em porcentagem da receita total", receita_atribuida_porcentagem)
         st.markdown("---")
 
 
@@ -837,91 +840,134 @@ def renderizar_tab_testes(pedidos_loja, status_16, col_store_id_pedidos, col_sto
 
 
     with st.expander("7 - Recorrência e Valor do Cliente"):
-
-
-        st.subheader("Índice 7.1 - Taxa de Recorrência")
         clientes_pedidos = status_16.groupby('customerid').size()
         total_clientes_unicos = len(clientes_pedidos)
         clientes_recorrentes = len(clientes_pedidos[clientes_pedidos > 1])
         taxa_recorrencia = (clientes_recorrentes / total_clientes_unicos) * 100 if total_clientes_unicos > 0 else 0
-        st.markdown(f"**Clientes c/ Pedido Concluído:** {total_clientes_unicos:,}".replace(",", "."))
-        st.markdown(f"**Clientes Recorrentes:** {clientes_recorrentes:,}".replace(",", "."))
-        st.markdown(f"**Taxa de Recorrência:** {taxa_recorrencia:.2f}%".replace(".", ","))
+
+        st.subheader("Índice 7.1 - Taxa de Recorrência")
+        col_rec_1, col_rec_2 = st.columns([1, 2])
+        with col_rec_1:
+            st.metric("Clientes Únicos", f"{total_clientes_unicos:,}".replace(",", "."))
+            st.metric("Clientes Recorrentes", f"{clientes_recorrentes:,}".replace(",", "."))
+        with col_rec_2:
+            grafico_porcentagem("Fidelização", f"{taxa_recorrencia:.2f}")
         st.markdown("---")
-
-
 
         st.subheader("Índice 7.2 - Participação dos Recorrentes na Receita")
         rec_recorrentes = status_16[status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]['totalamount'].sum()
         rec_total_s16 = status_16['totalamount'].sum()
-        st.markdown(f"**Receita dos recorrentes:** {formatar_moeda(rec_recorrentes)}")
-        st.markdown(f"**Porcentagem da receita dos recorrentes:** {rec_recorrentes / rec_total_s16 * 100:.2f}%")
-        rec_nao_recorrentes = status_16[~status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]['totalamount'].sum()
-        st.markdown(f"**Receita dos não recorrentes:** {formatar_moeda(rec_nao_recorrentes)}")
-        st.markdown(f"**Porcentagem da receita dos não recorrentes:** {rec_nao_recorrentes / rec_total_s16 * 100:.2f}%")
+        rec_nao_recorrentes = rec_total_s16 - rec_recorrentes
+        pct_recorrentes = f"{(rec_recorrentes / rec_total_s16 * 100):.2f}"
+        pct_nao_recorrentes = f"{(rec_nao_recorrentes / rec_total_s16 * 100):.2f}"
+
+        col_rec_3, col_rec_4 = st.columns([1, 2])
+        with col_rec_3:
+            st.metric("Receita Recorrentes", formatar_moeda(rec_recorrentes))
+            st.metric("Receita Não Recorrentes", formatar_moeda(rec_nao_recorrentes))
+        with col_rec_4:
+            df_rec_receita = pd.DataFrame({
+                'Categoria': ['Não Recorrentes', 'Recorrentes'],
+                'Valor': [pct_nao_recorrentes, pct_recorrentes]
+            })
+            grafico_pizza("Share de Receita (%)", df_rec_receita)
         st.markdown("---")
-
-
 
         st.subheader("Índice 7.3 - Frequência Média de Compra")
-        st.markdown(f"**Pedidos / Cliente (todos):** {len(status_16) / total_clientes_unicos:.2f} pediso/cliente")
-        st.markdown(f"**Pedidos / Cliente (recorrentes):** {len(status_16[status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]) / clientes_recorrentes:.2f} pedidos")
-        st.markdown(f"**Pedidos / Cliente (unicos):** {len(status_16[~status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]) / (total_clientes_unicos - clientes_recorrentes):.2f}")
+        pedidos_total = len(status_16)
+        freq_geral = f"{len(status_16) / total_clientes_unicos:.2f}"
+        pedidos_rec_only = f"{len(status_16[~status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]) / (total_clientes_unicos - clientes_recorrentes):.2f}"
+        freq_rec = f"{len(status_16[status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]) / clientes_recorrentes:.2f}"
+        col_rec_5, col_rec_6, col_rec7_3 = st.columns(3)
+
+        col_rec_5.metric("Pedidos / Cliente (Geral)", f"{freq_geral}")
+        col_rec_6.metric("Pedidos / Cliente (Recorrentes)", f"{freq_rec}")
+        col_rec7_3.metric("Pedidos / Cliente (Unicos)", f"{(pedidos_rec_only)}")
         st.markdown("---")
-
-
 
         st.subheader("Índice 7.4 - ARPU Diferenciado")
-        arpu_rec = status_16[status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]['totalamount'].sum() / clientes_recorrentes
-        arpu_nao_rec = status_16[~status_16['customerid'].isin(clientes_pedidos[clientes_pedidos > 1].index)]['totalamount'].sum() / (total_clientes_unicos - clientes_recorrentes)
-        st.markdown(f"**ARPU Recorrentes:** {arpu_rec:.2f}")
-        st.markdown(f"**ARPU Não Recorrentes:** {arpu_nao_rec:.2f}")
-        st.markdown(f"**Multiplicador:** {arpu_rec / arpu_nao_rec:.2f}")
-        st.markdown("---")
+        arpu_rec = rec_recorrentes / clientes_recorrentes if clientes_recorrentes > 0 else 0
+        rec_novos = rec_total_s16 - rec_recorrentes
+        clientes_novos = total_clientes_unicos - clientes_recorrentes
+        arpu_nao_rec = rec_novos / clientes_novos if clientes_novos > 0 else 0
+        col_rec_7, col_rec_8 = st.columns([1, 2])
+        with col_rec_7:
+            st.metric("ARPU Recorrentes", formatar_moeda(arpu_rec))
+            st.metric("ARPU Novos", formatar_moeda(arpu_nao_rec))
+            st.metric("Multiplicador", f"{(arpu_rec / arpu_nao_rec if arpu_nao_rec > 0 else 0):.2f}x")
+        with col_rec_8:
 
+            df_arpu_comp = pd.DataFrame({
+                'Categoria': ['Recorrente', 'Novo'],
+                'Valor': [f"{arpu_rec:.2f}", f"{arpu_nao_rec:.2f}"]
+            })
+            grafico_semi_circulo("Comparativo de Valor", df_arpu_comp)
 
 
     with st.expander("8 - Margem e Ponto de Equilíbrio"):
-
-
         st.subheader("Índice 8.1 - Margem de Contribuição Estimada")
-        st.markdown(f"**Receita Total:** {formatar_moeda(rec_total_s16)}")
         
-        cmv_percent = st.number_input("**CMV %:**" , min_value=0.0, max_value=100.0, value=32.0, step=0.1, key="cmv_percent")
-        st.markdown(f"**(-) CMV :** {formatar_moeda(rec_total_s16 * (cmv_percent / 100))}")
+        rec_total_s16 = status_16['totalamount'].sum()
+        
+        col_input_1, col_input_2, col_input_3 = st.columns(3)
+        with col_input_1:
+            cmv_percent = st.number_input("**CMV %:**" , min_value=0.0, max_value=100.0, value=32.0, step=0.1, key="cmv_percent_8")
+        with col_input_2:
+            comissao_percent = st.number_input("**Comissão %:**" , min_value=0.0, max_value=100.0, value=18.0, step=0.1, key="comissao_percent_8")
+        with col_input_3:
+            op_variavel_percent = st.number_input("**Custos Variáveis %:**" , min_value=0.0, max_value=100.0, value=8.0, step=0.1, key="op_variavel_percent_8")
 
-        comissao_percent = st.number_input("**Comissão %:**" , min_value=0.0, max_value=100.0, value=18.0, step=0.1, key="comissao_percent")
-        st.markdown(f"**(-) Comissão :** {formatar_moeda(rec_total_s16 * (comissao_percent / 100))}")
+        valor_cmv = rec_total_s16 * (cmv_percent / 100)
+        valor_comissao = rec_total_s16 * (comissao_percent / 100)
+        valor_custos_var = rec_total_s16 * (op_variavel_percent / 100)
+        margem_contribuicao = rec_total_s16 - valor_cmv - valor_comissao - valor_custos_var
+        margem_contribuicao_percent = (margem_contribuicao / rec_total_s16 * 100) if rec_total_s16 > 0 else 0
 
-        op_variavel_percent = st.number_input("**Custos Variáveis %:**" , min_value=0.0, max_value=100.0, value=8.0, step=0.1, key="op_variavel_percent")
-        st.markdown(f"**(-) Op. Variável :** {formatar_moeda(rec_total_s16 * (op_variavel_percent / 100))}")
+        col_graf_8_1, col_met_8_1 = st.columns([2, 1])
+        with col_graf_8_1:
+            df_margem = pd.DataFrame({
+                'Categoria': ['CMV', 'Comissão', 'Custos Var.', 'Margem'],
+                'Valor': [valor_cmv, valor_comissao, valor_custos_var, margem_contribuicao]
+            })
+            grafico_de_4_variaveis(df_margem)
+        
+        with col_met_8_1:
+            st.metric("Margem de Contribuição", formatar_moeda(margem_contribuicao))
+            st.metric("Margem %", f"{margem_contribuicao_percent:.2f}%")
 
-        margem_contribuicao = rec_total_s16 - (rec_total_s16 * (cmv_percent / 100)) - (rec_total_s16 * (comissao_percent / 100)) - (rec_total_s16 * (op_variavel_percent / 100))
-        st.markdown(f"**Margem de Contribuição:** {formatar_moeda(margem_contribuicao)}")
-        margem_contribuicao_percent = margem_contribuicao / rec_total_s16 * 100
-        st.markdown(f"**Margem de Contribuição %:** {margem_contribuicao_percent:.2f}%")
         st.markdown("---")
 
 
 
-        st.subheader("Índice 8.3 - Ponto de Equilíbrio em Pedidos")
+        st.subheader("Índice 8.3 - Ponto de Equilíbrio (Break-Even)")
+        
         mc_unitaria = status_16['totalamount'].mean() * (margem_contribuicao_percent / 100)
-        st.markdown(f"**MC unitária por periodo:** {formatar_moeda(mc_unitaria)} / pedido")
-        st.markdown(f"**Break-even RS 50k fixos:** {formatar_moeda(50000 / mc_unitaria)} pedidos / mês")
-        st.markdown(f"**Break-even RS 100k fixos:** {formatar_moeda(100000 / mc_unitaria)} pedidos / mês")
-        st.markdown(f"**Break-even RS 200k fixos:** {formatar_moeda(200000 / mc_unitaria)} pedidos / mês")
+        
+        col_be_1, col_be_2, col_be_3 = st.columns(3)
+        col_be_1.metric("MC Unitária Média", formatar_moeda(mc_unitaria))
+        col_be_2.metric("Break-even (Fixos R$ 50k)", f"{int(50000 / mc_unitaria) if mc_unitaria > 0 else 0} ped")
+        col_be_3.metric("Break-even (Fixos R$ 100k)", f"{int(100000 / mc_unitaria) if mc_unitaria > 0 else 0} ped")
+
         st.markdown("---")
 
 
 
-        st.subheader("Índice 8.4 - Margem Bruta de Canal (variando comissão)")
-        receita_por_canal_m = status_16.groupby('saleschannel')['totalamount'].sum()
-        margem_bruta_canal_p = (receita_por_canal_m / rec_total_s16) * 100
-        canal_selecionado_m = st.selectbox("**Canal de venda:**", status_16['saleschannel'].unique(), key="canal_margem")
-        st.markdown(formatar_moeda(receita_por_canal_m[canal_selecionado_m]))
-        st.markdown(margem_bruta_canal_p[canal_selecionado_m])
-        st.markdown(f"**{canal_selecionado_m} ({margem_bruta_canal_p[canal_selecionado_m]:.2f}%)**: {formatar_moeda(receita_por_canal_m[canal_selecionado_m] * (margem_bruta_canal_p[canal_selecionado_m]))}")
-        st.markdown("---")
+        st.subheader("Índice 8.4 - Margem Bruta por Canal")
+        canal_selecionado_m = st.selectbox("**Selecione o Canal para análise de margem:**", status_16['saleschannel'].unique(), key="canal_margem_8")
+        comissao_canal = 1 - (st.number_input("**Comissão %:**" , min_value=0.0, max_value=100.0, value=23.0, step=0.1) / 100)
+        receita_canal = status_16[status_16['saleschannel'] == canal_selecionado_m]['totalamount'].sum() * comissao_canal
+        receita_canal_total = status_16[status_16['saleschannel'] == canal_selecionado_m]['totalamount'].sum()
+        
+        col_met_8_2, col_met_8_3 = st.columns(2)
+        col_met_8_2.metric(f"Receita - {canal_selecionado_m}", formatar_moeda(receita_canal))
+        col_met_8_2.metric("% Participação Total", f"{comissao_canal * 100:.2f}%")
+
+        df_canal_margem = pd.DataFrame({
+            'Categoria': [f'Restante ({canal_selecionado_m})', 'Margem Bruta Canal Est.'],
+            'Valor': [receita_canal_total, receita_canal]
+        })
+        with col_met_8_3:
+            grafico_pizza(f"Distribuição Estimada - {canal_selecionado_m}", df_canal_margem)
     
 
         
