@@ -3,17 +3,31 @@ import base64
 import os
 
 def get_base64_image(image_path):
-    with open(image_path, "rb") as img_file:
-        return base64.b64encode(img_file.read()).decode()
+    try:
+        with open(image_path, "rb") as img_file:
+            return base64.b64encode(img_file.read()).decode()
+    except FileNotFoundError:
+        return ""
 
 def configurar_interface():
     st.set_page_config(page_title="Cannolitsky", layout="wide", page_icon="Logo.svg")
     
-    logo_path = "Logo_Branca.svg"
-    if not os.path.exists(logo_path):
-        logo_path = "../Logo_Branca.svg"
-        
-    img_base64 = get_base64_image(logo_path)
+    diretorio_atual = os.path.dirname(os.path.abspath(__file__))
+    
+    caminhos_possiveis = [
+        os.path.join(diretorio_atual, "Logo_Branca.svg"),
+        os.path.join(diretorio_atual, "..", "Logo_Branca.svg"),
+        os.path.join(os.getcwd(), "Logo_Branca.svg"),
+        os.path.join(os.getcwd(), "Front-End", "Logo_Branca.svg")
+    ]
+    
+    logo_path = None
+    for caminho in caminhos_possiveis:
+        if os.path.exists(caminho):
+            logo_path = caminho
+            break
+            
+    img_base64 = get_base64_image(logo_path) if logo_path else ""
 
     st.markdown(f"""
         <style>
@@ -103,7 +117,7 @@ def configurar_interface():
         </style>
     """, unsafe_allow_html=True)
 
-    st.markdown(f"""
+    header_html = f"""
         <div class="main-header">
             <div class="header-content">
                 <img src="data:image/svg+xml;base64,{img_base64}" width="60">
@@ -113,4 +127,15 @@ def configurar_interface():
                 </div>
             </div>
         </div>
-    """, unsafe_allow_html=True) 
+    """ if img_base64 else f"""
+        <div class="main-header">
+            <div class="header-content">
+                <div>
+                    <h1 class="header-title">Cannolitsky</h1>
+                    <p class="header-subtitle">Performance & Inteligência Contábil</p>
+                </div>
+            </div>
+        </div>
+    """
+    
+    st.markdown(header_html, unsafe_allow_html=True)
