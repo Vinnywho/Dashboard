@@ -64,7 +64,6 @@ def renderizar_tela_login():
         st.write("")
         
         with st.container(border=True):
-            st.image("Logo.svg", width=120)
             
             tab_login, tab_cadastro = st.tabs(["Acessar", "Novo Registro"])
             

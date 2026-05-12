@@ -1,96 +1,116 @@
 import streamlit as st
+import base64
+import os
+
+def get_base64_image(image_path):
+    with open(image_path, "rb") as img_file:
+        return base64.b64encode(img_file.read()).decode()
 
 def configurar_interface():
     st.set_page_config(page_title="Cannolitsky", layout="wide", page_icon="Logo.svg")
-    st.markdown("""
-        <style>
-        .stApp { 
-            background-color: #FCF8F8; 
-        }
-        .nav-container {
-            display: flex;
-            align-items: center;
-            background-color: #913322;
-            padding: 1rem 2rem;
-            border-radius: 0 0 2rem 2rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-        .nav-text {
-            color: white;
-            font-weight: 900;
-            text-transform: uppercase;
-            font-family: 'Montserrat', sans-serif;
-            font-size: 1.8rem;
-            margin-left: 1.5rem;
-        }
-        [data-testid="stMetric"] {
-            display: flex;
-            background-color: #B04735;
-            color: #fff;
-            padding: 15px;
-            border-radius: 2rem;
-            height: 125px;
-            border: 1px solid #e0e0e06c;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            transition: transform 0.2s;
-        }
-        [data-testid="column"] {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-content: center;
-            align-items: center;
-            text-align: center;
-        }
-        [data-testid="stMetric"]:hover {
-            transform: translateY(-5px);
-        }
-        [data-testid="stMetricValue"] {
-            font-size: 28px;
-            font-weight: bold;
-            color: #fff;
-        }
-        [data-testid="stMetricLabel"] {
-            font-size: 16px;
-            color: #fff;
-            font-weight: bold;
-        }
-        [data-testid="stMetricDelta"] {
-            color: #F2E0A5;
-            font-size: 14px;
-            font-weight: bold;
-        }
-        [data-baseweb="select"] > div {
-            border-radius: 2rem;
-            border: 1px solid #00000062;
-            text-align: center;
-            font-size: 20px;
-            font-weight: bold;
-            color: #565656FF;
-            margin-bottom: 20px;
-        }
-        label[data-testid="stWidgetLabel"] p {
-            color: #913322 !important;
-            font-weight: bold;
-        }
-        .ia-insight-box {
-            background-color: #ffffff;
-            border-left: 5px solid #913322;
-            padding: 20px;
-            border-radius: 10px;
-            margin: 20px 0;
-            color: #31333F;
-        }
-        </style>
-        """, unsafe_allow_html=True)
+    
+    logo_path = "Logo_Branca.svg"
+    if not os.path.exists(logo_path):
+        logo_path = "../Logo_Branca.svg"
+        
+    img_base64 = get_base64_image(logo_path)
 
-    with st.container():
-        col_logo, col_titulo = st.columns([1, 5])
-        with col_logo:
-            st.image("Logo.svg", width=120)
-        with col_titulo:
-            st.markdown('<p class="nav-text" style="color: #913322; font-weight: 900; text-transform: uppercase; font-family: \'Montserrat\', sans-serif; font-size: 1.8rem; margin-left: 1.5rem; margin-top: 20px">Análise de Performance das Campanhas</p>', unsafe_allow_html=True)
+    st.markdown(f"""
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Anta&family=Bagel+Fat+One&family=Barrio&family=Bitcount:wght@100..900&family=Cabin:ital,wght@0,400..700;1,400..700&family=Cherry+Bomb+One&family=Coral+Pixels&family=Handjet:wght,ELSH@100..900,2&family=Honk:MORF@15&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Josefin+Sans:ital,wght@0,100..700;1,100..700&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Permanent+Marker&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Press+Start+2P&family=Rubik+Glitch&display=swap');
+
+        .stApp {{ 
+            background-color: #FCF8F8; 
+        }}
+
+        .main-header {{
+            background: linear-gradient(90deg, #913322 0%, #B04735 100%);
+            padding: 1.5rem 2.5rem;
+            border-radius: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2.5rem;
+            box-shadow: 0 10px 30px rgba(145, 51, 34, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }}
+
+        .header-content {{
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }}
+
+        .headertitle {{
+            color: #fff;
+            font-family: 'Permanent Marker', sans-serif;
+            font-weight: 100;
+            font-size: 2.6rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin: 0;
+            line-height: 1;
+        }}
+
+        .header-subtitle {{
+            color: rgba(255, 255, 255, 0.8);
+            font-family: 'Montserrat', sans-serif;
+            font-size: 0.85rem;
+            font-weight: 400;
+            margin: 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }}
+
+        [data-testid="stMetric"] {{
+            background-color: white;
+            border: 1px solid #eee;
+            color: #31333F;
+            padding: 20px;
+            border-radius: 1.5rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03);
+            transition: all 0.3s ease;
+        }}
+
+        [data-testid="stMetric"]:hover {{
+            transform: translateY(-5px);
+            box-shadow: 0 8px 24px rgba(145, 51, 34, 0.1);
+            border-color: #913322;
+        }}
+
+        [data-testid="stMetricValue"] {{
+            font-size: 24px;
+            font-weight: 900;
+            color: #913322;
+        }}
+
+        [data-testid="stMetricLabel"] {{
+            font-size: 14px;
+            color: #565656;
+            font-weight: 700;
+            text-transform: uppercase;
+        }}
+
+        .ia-insight-box {{
+            background-color: white;
+            border-left: 6px solid #913322;
+            padding: 25px;
+            border-radius: 1rem;
+            margin: 20px 0;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        }}
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown(f"""
+        <div class="main-header">
+            <div class="header-content">
+                <img src="data:image/svg+xml;base64,{img_base64}" width="60">
+                <div>
+                    <div class="headertitle">Cannolitsky</div>
+                    <p class="header-subtitle">Performance & Inteligência Contábil</p>
+                </div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True) 

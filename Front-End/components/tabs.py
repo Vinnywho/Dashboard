@@ -8,6 +8,9 @@ from components.charts import (
     grafico_porcentagem, grafico_de_4_variaveis, 
     grafico_pizza, grafico_semi_circulo
 )
+from datetime import datetime
+from scipy import stats
+from sklearn.metrics import mean_squared_error, mean_absolute_error
 
 def renderizar_tab_campanhas_loja(impactados, pedidos_convertidos, id_loja_campanha, nome_loja_atual, col_store_id_pedidos, campanhas_total, campanha_selecionada, pedidos_loja):
     clientes_convertidos = set(pedidos_convertidos['customerid'].unique()) if not pedidos_convertidos.empty else set()
@@ -74,8 +77,8 @@ def renderizar_tab_campanhas_loja(impactados, pedidos_convertidos, id_loja_campa
         return 0, 0
 
 def renderizar_tab_testes(pedidos_loja, status_16, col_store_id_pedidos, col_store_name, mapa_lojas, conversoes_total):
-    st.subheader("Testes de Cálculos e Métricas")
-    st.markdown("Aqui você pode realizar testes rápidos de cálculos ou métricas específicas relacionadas às campanhas ou lojas. Insira os valores desejados para obter resultados instantâneos.")
+    st.subheader("Visão Financeira Contábil")
+    st.markdown("Aqui estão todos os cálculos exigidos pelo professor para a entrega de contabilidade.")
 
     with st.expander("1 - Estrutura da Receita", expanded=True):
         st.subheader("Indice 1.1 - Decomposição da Receita Reportada")
@@ -507,3 +510,168 @@ def renderizar_tab_testes(pedidos_loja, status_16, col_store_id_pedidos, col_sto
         col_met_8_2.metric("% Participação Total", f"{comissao_canal * 100:.2f}%")
         df_canal_margem = pd.DataFrame({'Categoria': [f'Restante ({canal_selecionado_m})', 'Margem Bruta Canal Est.'], 'Valor': [receita_canal_total, receita_canal]})
         with col_met_8_3: grafico_pizza(f"Distribuição Estimada - {canal_selecionado_m}", df_canal_margem)
+
+def renderizar_tab_clientes(df_clientes, df_enderecos, pedidos_loja, filtro_classe):
+    status_16 = pedidos_loja[pedidos_loja['status'] == 16].copy()
+    
+    agrupado = status_16.groupby('customerid').agg(
+        total_gasto=('totalamount', 'sum'),
+        total_pedidos=('id', 'count'),
+        ultimo_pedido=('createdat', 'max'),
+        ticket_medio=('totalamount', 'mean')
+    ).reset_index()
+    
+    df_analise = df_clientes[['id', 'name', 'dateofbirth']].merge(
+        agrupado, left_on='id', right_on='customerid', how='left'
+    )
+    
+    data_maxima = status_16['createdat'].max()
+    df_analise['dias_inatividade'] = (data_maxima - df_analise['ultimo_pedido']).dt.days
+    
+    def classificar(row):
+        if pd.isna(row['total_pedidos']) or row['total_pedidos'] == 0: return "Sem Pedido"
+        if row['dias_inatividade'] > 90: return "Em Risco"
+        if row['total_pedidos'] >= 3: return "Recorrente"
+        if row['total_pedidos'] == 2: return "Potencial"
+        return "Ocasional"
+
+    df_analise['classificacao'] = df_analise.apply(classificar, axis=1)
+    df_filtrado = df_analise[df_analise['classificacao'].isin(filtro_classe)]
+    
+    st.subheader(f"Indicadores de Base ({len(df_filtrado):,} clientes)")
+    
+    m1, m2, m3 = st.columns(3)
+    m1.metric("Gasto Total", f"R$ {df_filtrado['total_gasto'].sum():,.2f}")
+    m2.metric("Ticket Médio", f"R$ {df_filtrado['ticket_medio'].mean():,.2f}")
+    m3.metric("Pedidos Totais", f"{int(df_filtrado['total_pedidos'].sum()) if not df_filtrado.empty else 0}")
+
+    st.markdown("---")
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        dist = df_filtrado['classificacao'].value_counts().reset_index()
+        dist.columns = ['Categoria', 'Valor']
+        grafico_pizza("Composição da Base Filtrada", dist)
+    with c2:
+        df_filtrado['idade'] = df_filtrado['dateofbirth'].apply(lambda x: datetime.now().year - x.year if pd.notnull(x) else None)
+        st.altair_chart(alt.Chart(df_filtrado.dropna(subset=['idade'])).mark_bar(color='#913322').encode(
+            x=alt.X('idade:Q', bin=alt.Bin(maxbins=20), title='Idade'),
+            y=alt.Y('count()', title='Qtd')
+        ).properties(height=300), use_container_width=True)
+
+    st.dataframe(df_filtrado[['name', 'id', 'classificacao', 'ultimo_pedido', 'total_pedidos', 'total_gasto', 'ticket_medio']], use_container_width=True, hide_index=True)
+    st.markdown("---")
+    st.subheader("Distribuição Geográfica")
+    df_geo = df_enderecos['city'].value_counts().reset_index().head(10)
+    col_c, col_info = st.columns([2, 1])
+    
+    with col_c:
+        chart_city = alt.Chart(df_geo).mark_bar(color='#B04735', cornerRadiusEnd=15).encode(
+            x=alt.X('count:Q', title='Quantidade de Clientes'),
+            y=alt.Y('city:N', sort='-x', title='Cidade')
+        ).properties(height=400)
+        st.altair_chart(chart_city, use_container_width=True)
+        
+    with col_info:
+        top_cidade = df_geo.iloc[0]['city'] if not df_geo.empty else "N/A"
+        st.markdown(
+            f"""
+            <div style='display: flex; gap: 5px; flex-direction: column;'>
+                <span style='color: #262730; font-size: 18px; font-weight: bold;'>
+                    A maior concentração está em:
+                </span>
+                <span style='color: #64D248; font-size: 24px; font-weight: bold;'>
+                    {top_cidade}
+                </span>
+            </div>
+            """, 
+            unsafe_allow_html=True
+        )
+        
+def renderizar_tab_inferencial(status_16, confianca):
+    st.subheader(f"Regressão Linear (Nível de Confiança: {confianca*100:.0f}%)")
+    
+    df_reg = status_16[['subtotalamount', 'totalamount']].dropna()
+    x, y = df_reg['subtotalamount'], df_reg['totalamount']
+    
+    slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+    
+    t_score = stats.t.ppf((1 + confianca) / 2, len(x) - 2)
+    margem_erro = t_score * std_err
+    
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("R²", f"{r_value**2:.4f}")
+    c2.metric("P-Value", f"{p_value:.4f}")
+    c3.metric("Erro Padrão", f"{std_err:.4f}")
+    c4.metric("IC (Slope)", f"±{margem_erro:.4f}")
+
+    amostra = df_reg.sample(n=min(5000, len(df_reg)), random_state=42)
+    pontos = alt.Chart(amostra).mark_circle(color='#B04735', opacity=0.4).encode(
+        x=alt.X('subtotalamount:Q', title='Subtotal'),
+        y=alt.Y('totalamount:Q', title='Total')
+    )
+    
+    x_range = np.array([x.min(), x.max()])
+    df_linha = pd.DataFrame({'subtotalamount': x_range, 'previsao': intercept + slope * x_range})
+    linha = alt.Chart(df_linha).mark_line(color='#913322', size=3).encode(x='subtotalamount:Q', y='previsao:Q')
+    
+    st.altair_chart(pontos + linha, use_container_width=True)
+    st.info(f"Equação: Y = {intercept:.4f} + {slope:.4f} * X. Significância: {'Sim' if p_value < 0.05 else 'Não'}")
+    st.subheader("Análise Inferencial: Regressão Linear de Receita")
+    
+    df_reg = status_16[['subtotalamount', 'totalamount']].copy().dropna()
+    
+    x = df_reg['subtotalamount']
+    y = df_reg['totalamount']
+    
+    slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+    r_squared = r_value**2
+    
+    previsoes_full = intercept + slope * x
+    mse = mean_squared_error(y, previsoes_full)
+    mae = mean_absolute_error(y, previsoes_full)
+    
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("R² (Determinação)", f"{r_squared:.4f}")
+    col2.metric("P-Value", f"{p_value:.4f}")
+    col3.metric("MSE", f"{mse:.2f}")
+    col4.metric("MAE", f"{mae:.2f}")
+    
+    st.markdown("---")
+    
+    amostra_grafico = df_reg.sample(n=min(5000, len(df_reg)), random_state=42)
+    
+    pontos = alt.Chart(amostra_grafico).mark_circle(color='#B04735', opacity=0.4).encode(
+        x=alt.X('subtotalamount:Q', title='Subtotal (Valor Bruto em R$)'),
+        y=alt.Y('totalamount:Q', title='Total Amount (Valor Líquido em R$)'),
+        tooltip=['subtotalamount', 'totalamount']
+    )
+    
+    x_min, x_max = x.min(), x.max()
+    df_linha = pd.DataFrame({
+        'subtotalamount': [x_min, x_max],
+        'previsao': [intercept + slope * x_min, intercept + slope * x_max]
+    })
+    
+    linha = alt.Chart(df_linha).mark_line(color='#913322', size=3).encode(
+        x='subtotalamount:Q',
+        y='previsao:Q'
+    )
+    
+    st.altair_chart(pontos + linha, use_container_width=True)
+    
+    st.markdown("### Diagnóstico do Modelo")
+    
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.write(f"**Equação da Reta:** Y = {intercept:.4f} + {slope:.4f} * X")
+        st.write(f"**Erro Padrão:** {std_err:.4f}")
+        
+    with col_b:
+        if r_squared > 0.7:
+            st.success("O modelo possui um alto poder explicativo.")
+        else:
+            st.warning("O modelo apresenta variabilidade não explicada significativa.")
+
+    if p_value < 0.05:
+        st.info(f"A cada R$ 1,00 de aumento no Subtotal, o Total Líquido varia em média R$ {slope:.2f}.")
