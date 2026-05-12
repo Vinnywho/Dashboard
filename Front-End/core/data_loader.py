@@ -7,8 +7,14 @@ def carregar_dados():
     diretorio_core = os.path.dirname(os.path.abspath(__file__))
     raiz_projeto = os.path.dirname(os.path.dirname(diretorio_core))
     
-    def get_path(nome_arquivo):
-        nomes_tentar = [nome_arquivo.upper(), nome_arquivo.lower()]
+    def get_path(nome_base):
+        variacoes = [
+            nome_base.upper(), 
+            nome_base.lower(),
+            nome_base.replace('x', ' ').upper(),
+            nome_base.replace('x', ' ').lower(),
+            nome_base.replace('x', '_').upper()
+        ]
         
         caminhos_base = [
             os.path.join(raiz_projeto, "data"),
@@ -18,12 +24,15 @@ def carregar_dados():
         ]
         
         for base in caminhos_base:
-            for nome in nomes_tentar:
-                caminho_completo = os.path.join(base, nome)
-                if os.path.exists(caminho_completo):
-                    return caminho_completo
+            for nome in variacoes:
+                extensoes = ['.CSV', '.csv']
+                for ext in extensoes:
+                    nome_completo = nome.replace('.CSV', '') + ext
+                    caminho = os.path.join(base, nome_completo)
+                    if os.path.exists(caminho):
+                        return caminho
         
-        return os.path.join(raiz_projeto, "data", nome_arquivo.upper())
+        return os.path.join(raiz_projeto, "data", nome_base)
 
     df_campanhas = pd.read_csv(get_path('CAMPAIGN.CSV'))
     df_conversoes = pd.read_csv(get_path('CAMPAIGNxORDER.CSV'))
