@@ -8,20 +8,26 @@ def carregar_dados():
     raiz_projeto = os.path.dirname(os.path.dirname(diretorio_core))
     
     def get_path(nome_arquivo):
-        caminhos = [
-            os.path.join(raiz_projeto, "data", nome_arquivo),
-            os.path.join(os.path.dirname(diretorio_core), "data", nome_arquivo),
-            os.path.join(os.getcwd(), "data", nome_arquivo),
-            os.path.join(os.getcwd(), "Front-End", "data", nome_arquivo)
+        nomes_tentar = [nome_arquivo.upper(), nome_arquivo.lower()]
+        
+        caminhos_base = [
+            os.path.join(raiz_projeto, "data"),
+            os.path.join(raiz_projeto, "dados"),
+            os.path.join(os.getcwd(), "data"),
+            os.path.join(os.getcwd(), "Front-End", "data")
         ]
-        for c in caminhos:
-            if os.path.exists(c):
-                return c
-        return os.path.join(raiz_projeto, "data", nome_arquivo)
+        
+        for base in caminhos_base:
+            for nome in nomes_tentar:
+                caminho_completo = os.path.join(base, nome)
+                if os.path.exists(caminho_completo):
+                    return caminho_completo
+        
+        return os.path.join(raiz_projeto, "data", nome_arquivo.upper())
 
     df_campanhas = pd.read_csv(get_path('CAMPAIGN.CSV'))
     df_conversoes = pd.read_csv(get_path('CAMPAIGNxORDER.CSV'))
-    df_pedidos_loja = pd.read_csv(get_path('STOREORDER.csv'))
+    df_pedidos_loja = pd.read_csv(get_path('STOREORDER.CSV'))
     df_stores = pd.read_csv(get_path('STORE.CSV'))
     df_clientes = pd.read_csv(get_path('CUSTOMER.CSV'))
     df_enderecos = pd.read_csv(get_path('CUSTOMERADDRESS.CSV'))
