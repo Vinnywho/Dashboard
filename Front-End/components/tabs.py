@@ -610,7 +610,7 @@ def renderizar_tab_inferencial(status_16, confianca):
     mse = mean_squared_error(y, previsoes_full)
     mae = mean_absolute_error(y, previsoes_full)
     
-    st.markdown("### 📊 Métricas de Ajuste do Modelo")
+    st.markdown("### Métricas de Ajuste do Modelo")
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("R² (Poder Explicativo)", f"{r_squared:.4f}")
     col2.metric("P-Value (Significância)", f"{p_value:.4f}")
@@ -618,7 +618,7 @@ def renderizar_tab_inferencial(status_16, confianca):
     col4.metric("IC (Slope)", f"±{margem_erro:.4f}")
     
     st.markdown("---")
-    st.markdown("### 📈 Gráfico de Dispersão e Linha de Tendência")
+    st.markdown("### Gráfico de Dispersão e Linha de Tendência")
     
     amostra_grafico = df_reg.sample(n=min(5000, len(df_reg)), random_state=42)
     
@@ -641,7 +641,7 @@ def renderizar_tab_inferencial(status_16, confianca):
     
     st.altair_chart(pontos + linha, use_container_width=True)
     
-    st.markdown("### 🔍 Diagnóstico e Interpretação Direta")
+    st.markdown("### Diagnóstico e Interpretação Direta")
     col_a, col_b = st.columns(2)
     with col_a:
         st.markdown(f"**Equação da Reta:** `Y = {intercept:.4f} + {slope:.4f} * X`")
@@ -650,14 +650,14 @@ def renderizar_tab_inferencial(status_16, confianca):
         
     with col_b:
         if r_squared > 0.7:
-            st.success("💪 **Alto poder explicativo:** A variação no valor bruto (Subtotal) explica muito bem o comportamento do valor líquido final.")
+            st.success("**Alto poder explicativo:** A variação no valor bruto (Subtotal) explica muito bem o comportamento do valor líquido final.")
         else:
-            st.warning("⚠️ **Variabilidade não explicada:** Fatores adicionais fora o subtotal (como descontos ou taxas agressivas) estão impactando o valor final.")
+            st.warning("**Variabilidade não explicada:** Fatores adicionais fora o subtotal (como descontos ou taxas agressivas) estão impactando o valor final.")
 
         if p_value < 0.05:
-            st.info(f"✨ **Resultado Estatisticamente Relevante:** A cada R$ 1,00 de aumento no Subtotal, o Total Líquido varia em média **R$ {slope:.2f}**.")
+            st.info(f"**Resultado Estatisticamente Relevante:** A cada R$ 1,00 de aumento no Subtotal, o Total Líquido varia em média **R$ {slope:.2f}**.")
         else:
-            st.error("❌ **Sem Relação Estatística Provada:** O subtotal não possui um impacto confiável sobre o valor total neste cenário.")
+            st.error("**Sem Relação Estatística Provada:** O subtotal não possui um impacto confiável sobre o valor total neste cenário.")
 
     prompt_estruturado = f"""
     Você é um assistente estatístico de alta precisão. Analise os resultados de uma Regressão Linear Simples executada sobre os dados operacionais e gere um insight executivo interpretativo curto, claro e direto.
