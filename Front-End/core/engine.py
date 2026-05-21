@@ -11,13 +11,18 @@ def obter_insight_ia(nome_camp, metricas):
             base_url="https://api.groq.com/openai/v1",
             api_key=st.secrets["GROQ_API_KEY"]
         )
-        prompt = f"""
-        Analise a campanha '{nome_camp}':
-        - Clientes Impactados: {metricas['impactados']}
-        - Taxa de Conversão: {metricas['conversao']:.2f}%
-        - Receita Gerada Diretamente: {formatar_moeda(metricas['receita_direta'])}
-        Gere uma análise executiva curta e estratégica.
-        """
+        
+        if 'prompt' in metricas:
+            prompt = metricas['prompt']
+        else:
+            prompt = f"""
+            Analise a campanha '{nome_camp}':
+            - Clientes Impactados: {metricas.get('impactados', 0)}
+            - Taxa de Conversão: {metricas.get('conversao', 0):.2f}%
+            - Receita Gerada Diretamente: {formatar_moeda(metricas.get('receita_direta', 0))}
+            Gere uma análise executiva curta e estratégica.
+            """
+            
         resposta = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": prompt}]

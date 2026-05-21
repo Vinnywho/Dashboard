@@ -591,6 +591,102 @@ def renderizar_tab_clientes(df_clientes, df_enderecos, pedidos_loja, filtro_clas
 def renderizar_tab_inferencial(status_16, confianca):
     st.subheader(f"Regressão Linear (Nível de Confiança: {confianca*100:.0f}%)")
     
+    df_reg = status_16[['subtotalamount', 'totalamount']].copy().dropna()
+    
+    if df_reg.empty:
+        st.warning("Dados insuficientes para executar a análise de regressão.")
+        return None
+
+    x = df_reg['subtotalamount']
+    y = df_reg['totalamount']
+    
+    slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+    r_squared = r_value**2
+    
+    t_score = stats.t.ppf((1 + confianca) / 2, len(x) - 2)
+    margem_erro = t_score * std_err
+    
+    previsoes_full = intercept + slope * x
+    mse = mean_squared_error(y, previsoes_full)
+    mae = mean_absolute_error(y, previsoes_full)
+    
+    st.markdown("### 📊 Métricas de Ajuste do Modelo")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("R² (Poder Explicativo)", f"{r_squared:.4f}")
+    col2.metric("P-Value (Significância)", f"{p_value:.4f}")
+    col3.metric("Erro Padrão", f"{std_err:.4f}")
+    col4.metric("IC (Slope)", f"±{margem_erro:.4f}")
+    
+    st.markdown("---")
+    st.markdown("### 📈 Gráfico de Dispersão e Linha de Tendência")
+    
+    amostra_grafico = df_reg.sample(n=min(5000, len(df_reg)), random_state=42)
+    
+    pontos = alt.Chart(amostra_grafico).mark_circle(color='#B04735', opacity=0.4).encode(
+        x=alt.X('subtotalamount:Q', title='Subtotal (Valor Bruto em R$)'),
+        y=alt.Y('totalamount:Q', title='Total Amount (Valor Líquido em R$)'),
+        tooltip=['subtotalamount', 'totalamount']
+    )
+    
+    x_min, x_max = x.min(), x.max()
+    df_linha = pd.DataFrame({
+        'subtotalamount': [x_min, x_max],
+        'previsao': [intercept + slope * x_min, intercept + slope * x_max]
+    })
+    
+    linha = alt.Chart(df_linha).mark_line(color='#913322', size=3).encode(
+        x='subtotalamount:Q',
+        y='previsao:Q'
+    )
+    
+    st.altair_chart(pontos + linha, use_container_width=True)
+    
+    st.markdown("### 🔍 Diagnóstico e Interpretação Direta")
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown(f"**Equação da Reta:** `Y = {intercept:.4f} + {slope:.4f} * X`")
+        st.markdown(f"**Erro Médio Absoluto (MAE):** R$ {mae:.2f}")
+        st.markdown(f"**Erro Quadrático Médio (MSE):** {mse:.2f}")
+        
+    with col_b:
+        if r_squared > 0.7:
+            st.success("💪 **Alto poder explicativo:** A variação no valor bruto (Subtotal) explica muito bem o comportamento do valor líquido final.")
+        else:
+            st.warning("⚠️ **Variabilidade não explicada:** Fatores adicionais fora o subtotal (como descontos ou taxas agressivas) estão impactando o valor final.")
+
+        if p_value < 0.05:
+            st.info(f"✨ **Resultado Estatisticamente Relevante:** A cada R$ 1,00 de aumento no Subtotal, o Total Líquido varia em média **R$ {slope:.2f}**.")
+        else:
+            st.error("❌ **Sem Relação Estatística Provada:** O subtotal não possui um impacto confiável sobre o valor total neste cenário.")
+
+    prompt_estruturado = f"""
+    Você é um assistente estatístico de alta precisão. Analise os resultados de uma Regressão Linear Simples executada sobre os dados operacionais e gere um insight executivo interpretativo curto, claro e direto.
+
+    Diretrizes Estritas:
+    1. Nunca arredonde os coeficientes estatísticos fornecidos (R², P-Valor, Slope, Intercepto, Erro Padrão). Use-os com a precisão exata fornecida.
+    2. Explique o significado prático do R² em termos de variabilidade explicada.
+    3. Avalie a significância estatística com base no P-Valor e no Nível de Confiança de {confianca*100:.0f}%.
+    4. Apresente a interpretação econômica do Slope (o impacto de R$ 1,00 no subtotal em relação ao valor total).
+
+    Dados Contábeis e Estatísticos do Modelo:
+    - Variável Independente (X): Subtotalamount (Valor Bruto)
+    - Variável Dependente (Y): Totalamount (Valor Líquido Comercial)
+    - Tamanho da Amostra (N): {len(df_reg)}
+    - R² (Coeficiente de Determinação): {r_squared:.6f}
+    - P-Valor: {p_value:.6f}
+    - Coeficiente Angular (Slope): {slope:.6f}
+    - Intercepto (Beta 0): {intercept:.6f}
+    - Erro Padrão do Estimador: {std_err:.6f}
+    - Erro Médio Absoluto (MAE): {mae:.4f}
+    - Erro Quadrático Médio (MSE): {mse:.4f}
+    """
+
+    return {
+        'prompt': prompt_estruturado,
+        'analise': 'Regressao Linear Simples'
+    }
+    st.subheader(f"Regressão Linear (Nível de Confiança: {confianca*100:.0f}%)")
+    
     df_reg = status_16[['subtotalamount', 'totalamount']].dropna()
     x, y = df_reg['subtotalamount'], df_reg['totalamount']
     

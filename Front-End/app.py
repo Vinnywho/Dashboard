@@ -101,8 +101,15 @@ def page_inferencial():
     with st.sidebar:
         st.header("Configurações Estatísticas")
         confianca = st.select_slider("Nível de Confiança:", options=[0.90, 0.95, 0.99], value=0.95)
+        st.markdown("---")
+        st.subheader("Análise Avançada")
+        gerar_ia = st.button("Interpretar Regressão com IA", use_container_width=True)
     
-    renderizar_tab_inferencial(status_16, confianca)
+    dados_contexto = renderizar_tab_inferencial(status_16, confianca)
+
+    if gerar_ia and dados_contexto:
+        with st.sidebar:
+            st.info("💡 " + obter_insight_ia(dados_contexto['prompt'], dados_contexto))
 
 def page_testes():
     from core.styles import configurar_interface
